@@ -27,6 +27,8 @@ location targeting in Meta Ads or Google Ads.
 2. Adrev draws the reach radius and ranks every ZIP code inside it.
 3. Each ZIP shows its score, the four parts behind it, and one plain sentence of evidence.
 4. Tick the ZIPs you want. Copy the list or download the CSV.
+5. Switch to **How to buy it** for the channels that can reach those ZIPs: who sells each one, an
+   indicative price, where to ask, and what your plan means for that channel.
 
 The score is a weighted sum of four parts, each scaled 0 to 1 across the ZIPs in range:
 
@@ -43,6 +45,24 @@ the plan to a client, so every number needs to be traceable.
 
 The banner above the list compares competitor density in the radius with the citywide rate, which tells
 you whether to chase gaps or chase reach.
+
+## From where to how
+
+A ZIP list is only useful if you can buy against it, so the second tab turns the plan into channels:
+
+| Channel | What Adrev adds from the plan |
+|---|---|
+| Every Door Direct Mail (US) | Postage to mail every address in the selected ZIPs, at the published USPS rate |
+| Facebook, Instagram, Google (anywhere) | The ZIP or pin list ready to paste, plus a click cost benchmark for the business type |
+| Muni, shelters, BART, Caltrain, billboards (San Francisco) | Rail and bus stops on record inside the selected ZIPs, from Overture places |
+| MTA, LA Metro, CTA, TfL | Seller and where to ask |
+
+The seller, price and contact table in [`src/channelData.ts`](src/channelData.ts) is curated by hand and
+is **not** Overture data. Every row carries its sources and a basis label: published rate, third party
+estimate, or no public rate. Most outdoor and transit sellers publish no rate card, so those prices are
+market ranges from third parties and the UI says so. Contact buttons go to the seller's or the transit
+agency's official advertising page, not to named sales reps, because people change jobs faster than
+pages do.
 
 ## The data, as extracted
 
@@ -77,6 +97,8 @@ scripts/make_fixture.mjs  synthetic city file for offline development
 src/score.ts              scoring, pure functions
 src/search.ts             name search
 src/map.ts                map layers
+src/channels.ts           transit stops in the plan, channel selection per city
+src/channelData.ts        curated sellers, prices, contacts and sources
 src/main.ts               UI
 tests/score.test.ts       unit tests for the scoring
 ```
@@ -127,6 +149,11 @@ Adding a city is one line in `scripts/cities.json`.
   invisible as competitors. The switch between the narrow and the wider subtree is the manual override.
 - **Listings under 50% confidence are ignored.** Overture's confidence score filters places that may not
   exist. A missing competitor still means "none on record", and the copy says exactly that.
+- **Channel prices are a snapshot.** Gathered in November 2026, in US dollars, mostly third party ranges.
+  Local sellers are curated for San Francisco in depth and four other cities by name only; everywhere
+  else shows the channels that work anywhere. A real product would need a maintained rate source.
+- **Transit stops are counted, not attributed.** Overture does not record which agency runs a stop, and
+  station names are noisy, so the BART and Caltrain cards only name a station when its label says so.
 - **Cut:** saved plans and share links, budget split across ZIPs, demographic overlays, multi location
   brands, direct push to ad platform APIs.
 

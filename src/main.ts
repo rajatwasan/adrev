@@ -4,6 +4,8 @@ import { KM_PER_MI, WEIGHTS, buildTradeArea, defaultScope, defaultSelection, sum
 import { makeSearcher, type Searcher } from './search';
 import { AreaMap } from './map';
 import { copy, download, targetingList, toCsv } from './export';
+import { channelsFor, transitInPlan, type PlanContext } from './channels';
+import { CHANNELS_AS_OF } from './channelData';
 
 const panel = document.getElementById('panel')!;
 const legend = document.getElementById('legend')!;
@@ -20,6 +22,7 @@ let map: AreaMap;
 let area: TradeArea | null = null;
 let selected = new Set<string>();
 let hoverId: string | null = null;
+let tab: 'where' | 'how' = 'where';
 const options: Options = { radiusMi: 2, priority: 'balanced', scope: 'same', minConf: 50 };
 
 // Radius choices per unit system. The model works in miles; km cities just get round km numbers.
@@ -266,6 +269,8 @@ function dropPin(lat: number, lng: number): void {
 }
 
 function start(subject: Subject): void {
+  tab = 'where';
+  panel.scrollTop = 0;
   options.scope = defaultScope(city, subject.cat);
   recompute(subject, true, true);
 }
@@ -306,6 +311,50 @@ function insight(a: TradeArea): string {
   return `<p class="insight flat"><strong>Typical competition for the city.</strong> ${rates}</p>`;
 }
 
+const KIND_LABEL = { digital: 'Online', mail: 'Mail', transit: 'Transit', outdoor: 'Outdoor' } as const;
+
+function renderChannels(a: TradeArea, sum: ReturnType<typeof summarize>): string {
+  const ctx: PlanContext = {
+    city,
+    catId: city.cats[a.subject.cat].id,
+    zoneIds: a.zones.filter((z) => selected.has(z.id)).map((z) => z.id),
+    reach: sum.reach,
+    transit: transitInPlan(city, a, selected),
+  };
+  const list = channelsFor(city);
+  const local = list.some((c) => c.regions.includes(city.meta.slug ?? ''));
+  const cards = list
+    .map((c) => {
+      const mine = c.forPlan?.(ctx);
+      return `
+      <li class="channel">
+        <div class="ch-top"><strong>${esc(c.name)}</strong><span class="tag t-${c.kind}">${KIND_LABEL[c.kind]}</span></div>
+        <div class="ch-cost">${esc(c.cost)} <span class="muted small">· ${esc(c.costBasis)}</span></div>
+        ${mine ? `<p class="ch-plan">${esc(mine)}</p>` : ''}
+        <p class="ch-target">${esc(c.targeting)}</p>
+        <div class="ch-foot">
+          <a class="btn small" href="${esc(c.contactUrl)}" target="_blank" rel="noopener">Contact ${esc(c.seller)} ↗</a>
+          ${c.contactDetail ? `<span class="muted small">${esc(c.contactDetail)}</span>` : ''}
+        </div>
+        <p class="ch-src muted small">Source: ${c.sources.map((x) => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.label)}</a>`).join(', ')}</p>
+      </li>`;
+    })
+    .join('');
+  return `
+    <div class="pad how-head">
+      <h3>Ways to reach ${sum.count ? `your ${sum.count} ${zoneWord(sum.count)}` : 'this area'}</h3>
+      <p class="muted small">${
+        local
+          ? `Sellers and price ranges for ${esc(city.meta.city)}, plus channels that work anywhere.`
+          : `Local outdoor and transit sellers are not curated for ${esc(city.meta.city)} yet. These channels work anywhere${city.meta.country === 'US' ? ' in the US' : ''}.`
+      }</p>
+    </div>
+    <ol class="channels">${cards}</ol>
+    <p class="pad disclaimer muted small">Prices are indicative ranges gathered in ${CHANNELS_AS_OF}, in US dollars. Sellers quote by campaign,
+    season and inventory, so confirm before budgeting. Adrev is not affiliated with any seller. Seller and price data is
+    curated by hand; only the station and address counts come from Overture.</p>`;
+}
+
 function renderResult(): void {
   if (!area) return;
   const a = area;
@@ -313,11 +362,52 @@ function renderResult(): void {
   const cat = city.cats[s.cat];
   const sum = summarize(a, selected);
   const w = WEIGHTS[options.priority];
-  const scroll = panel.querySelector('.zones')?.scrollTop ?? 0;
+  const scroll = panel.scrollTop;
   const unit = reachUnit();
   const addr = s.placeIndex >= 0 ? city.places.addr[s.placeIndex] : 'Dropped pin';
   const parentLabel = cat.parent.replace(/_/g, ' ');
   const broad = cat.id === cat.group; // top level label only, too coarse to count rivals
+
+  const whereHtml = `
+      <div class="zones-head pad">
+        <h3>${a.zones.length} ${zoneWord(a.zones.length)}, best first</h3>
+        <span class="muted small">Tick to target</span>
+      </div>
+      <ol class="zones">
+        ${a.zones
+          .map(
+            (z, i) => `
+          <li class="zone ${selected.has(z.id) ? 'sel' : ''}" data-zone="${esc(z.id)}">
+            <label>
+              <input type="checkbox" ${selected.has(z.id) ? 'checked' : ''} aria-label="Target ${esc(z.label)}" />
+              <span class="rank">${i + 1}</span>
+              <span class="zmain">
+                <span class="zrow"><strong>${esc(z.label)}</strong><span class="score" title="Score out of 100">${z.score.toFixed(0)}</span></span>
+                <span class="bar" aria-hidden="true">
+                  <i class="b-reach" style="width:${(w.reach * z.parts.reach * 100).toFixed(1)}%"></i><i class="b-gap" style="width:${(w.gap * z.parts.gap * 100).toFixed(1)}%"></i><i class="b-anchor" style="width:${(w.anchors * z.parts.anchors * 100).toFixed(1)}%"></i><i class="b-prox" style="width:${(w.proximity * z.parts.proximity * 100).toFixed(1)}%"></i>
+                </span>
+                <span class="why">${esc(z.reason)}</span>
+              </span>
+            </label>
+          </li>`,
+          )
+          .join('')}
+      </ol>
+
+      <details class="pad how">
+        <summary>How the score works</summary>
+        <p>Each ${zoneWord(1)} gets four parts, scaled 0 to 1 across the ${zoneWord(2)} in range, then weighted:</p>
+        <ul>
+          <li><i class="key b-reach"></i><strong>Reach ${pct(w.reach)}</strong>: ${unit} inside the radius (Overture ${unit} theme).</li>
+          <li><i class="key b-gap"></i><strong>Open ground ${pct(w.gap)}</strong>: fewer competitors per 1,000 ${unit} scores higher.</li>
+          <li><i class="key b-anchor"></i><strong>Anchors ${pct(w.anchors)}</strong>: ${esc(a.anchorLabel)} nearby.</li>
+          <li><i class="key b-prox"></i><strong>Proximity ${pct(w.proximity)}</strong>: closer to the business scores higher.</li>
+        </ul>
+        <p class="muted small">Places with an Overture confidence under ${options.minConf}% are ignored. ${city.meta.zoneKind === 'zip' ? 'Postal zones are approximated on a hexagon grid, so edges are rough.' : ''}
+        ${unit === 'addresses' ? 'Address counts are a proxy for households, not a census.' : 'This city has no open address data in Overture, so building counts stand in for reach.'}</p>
+      </details>
+
+`;
 
   panel.innerHTML = `
     <div class="result">
@@ -360,43 +450,11 @@ function renderResult(): void {
         ${insight(a)}
       </header>
 
-      <div class="zones-head pad">
-        <h3>${a.zones.length} ${zoneWord(a.zones.length)}, best first</h3>
-        <span class="muted small">Tick to target</span>
+      <div class="tabs" role="tablist">
+        <button role="tab" data-tab="where" aria-selected="${tab === 'where'}" class="${tab === 'where' ? 'on' : ''}">Where to aim</button>
+        <button role="tab" data-tab="how" aria-selected="${tab === 'how'}" class="${tab === 'how' ? 'on' : ''}">How to buy it</button>
       </div>
-      <ol class="zones">
-        ${a.zones
-          .map(
-            (z, i) => `
-          <li class="zone ${selected.has(z.id) ? 'sel' : ''}" data-zone="${esc(z.id)}">
-            <label>
-              <input type="checkbox" ${selected.has(z.id) ? 'checked' : ''} aria-label="Target ${esc(z.label)}" />
-              <span class="rank">${i + 1}</span>
-              <span class="zmain">
-                <span class="zrow"><strong>${esc(z.label)}</strong><span class="score" title="Score out of 100">${z.score.toFixed(0)}</span></span>
-                <span class="bar" aria-hidden="true">
-                  <i class="b-reach" style="width:${(w.reach * z.parts.reach * 100).toFixed(1)}%"></i><i class="b-gap" style="width:${(w.gap * z.parts.gap * 100).toFixed(1)}%"></i><i class="b-anchor" style="width:${(w.anchors * z.parts.anchors * 100).toFixed(1)}%"></i><i class="b-prox" style="width:${(w.proximity * z.parts.proximity * 100).toFixed(1)}%"></i>
-                </span>
-                <span class="why">${esc(z.reason)}</span>
-              </span>
-            </label>
-          </li>`,
-          )
-          .join('')}
-      </ol>
-
-      <details class="pad how">
-        <summary>How the score works</summary>
-        <p>Each ${zoneWord(1)} gets four parts, scaled 0 to 1 across the ${zoneWord(2)} in range, then weighted:</p>
-        <ul>
-          <li><i class="key b-reach"></i><strong>Reach ${pct(w.reach)}</strong>: ${unit} inside the radius (Overture ${unit} theme).</li>
-          <li><i class="key b-gap"></i><strong>Open ground ${pct(w.gap)}</strong>: fewer competitors per 1,000 ${unit} scores higher.</li>
-          <li><i class="key b-anchor"></i><strong>Anchors ${pct(w.anchors)}</strong>: ${esc(a.anchorLabel)} nearby.</li>
-          <li><i class="key b-prox"></i><strong>Proximity ${pct(w.proximity)}</strong>: closer to the business scores higher.</li>
-        </ul>
-        <p class="muted small">Places with an Overture confidence under ${options.minConf}% are ignored. ${city.meta.zoneKind === 'zip' ? 'Postal zones are approximated on a hexagon grid, so edges are rough.' : ''}
-        ${unit === 'addresses' ? 'Address counts are a proxy for households, not a census.' : 'This city has no open address data in Overture, so building counts stand in for reach.'}</p>
-      </details>
+      <div class="tabbody">${tab === 'how' ? renderChannels(a, sum) : whereHtml}</div>
 
       <footer class="pad export">
         <div class="sum">
@@ -411,8 +469,18 @@ function renderResult(): void {
       </footer>
     </div>`;
 
-  const zonesEl = panel.querySelector<HTMLElement>('.zones')!;
-  zonesEl.scrollTop = scroll;
+  const bodyEl = panel.querySelector<HTMLElement>('.tabbody')!;
+  panel.scrollTop = scroll;
+  panel.querySelector('.tabs')!.addEventListener('click', (e) => {
+    const t = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]')?.dataset.tab as typeof tab | undefined;
+    if (!t || t === tab) return;
+    tab = t;
+    renderResult();
+    // Bring the tab bar to the top so the new tab's content is what you see.
+    const tabs = panel.querySelector<HTMLElement>('.tabs')!;
+    panel.scrollTop = Math.min(scroll, tabs.offsetTop);
+  });
+  const zonesEl = bodyEl;
 
   legend.hidden = false;
   legend.innerHTML = `
