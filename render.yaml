@@ -1,7 +1,0 @@
-# Alternative host: a Render static site. The build pulls the Overture extract, then builds the app.
-services:
-  - type: web
-    name: adrev
-    runtime: static
-    buildCommand: pip install -r scripts/requirements.txt && python scripts/extract.py && npm ci && npm run build
-    staticPublishPath: dist

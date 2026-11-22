@@ -1,0 +1,58 @@
+name: Refresh Overture extract
+
+# Pulls the city from Overture, checks it, and commits public/data/city.json.
+# Netlify redeploys on that commit.
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/extract.py
+      - scripts/requirements.txt
+      - .github/workflows/data.yml
+  schedule:
+    - cron: '17 9 25 * *' # monthly, a few days after Overture's usual release
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data
+  cancel-in-progress: true
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Extract San Francisco from Overture
+        run: |
+          pip install -r scripts/requirements.txt
+          python scripts/extract.py
+      - name: Refuse to ship a synthetic or empty file
+        run: |
+          python - <<'PY'
+          import json
+          d = json.load(open('public/data/city.json'))
+          assert not d['meta'].get('synthetic'), 'synthetic fixture'
+          assert len(d['places']['name']) > 1000 and len(d['zones']) > 1
+          print(d['meta'], len(d['places']['name']), 'places', len(d['zones']), 'zones')
+          PY
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Commit the extract
+        run: |
+          git config user.name "Rajat Wasan"
+          git config user.email "rajatwasan12@gmail.com"
+          git add public/data/city.json
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "Data: Overture extract $(python -c "import json;print(json.load(open('public/data/city.json'))['meta']['release'])")"
+          git push

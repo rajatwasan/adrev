@@ -48,8 +48,8 @@ you whether to chase gaps or chase reach.
 
 - Vite, TypeScript, MapLibre GL, h3-js. No framework and no backend.
 - `scripts/extract.py` reads Overture GeoParquet on S3 with DuckDB and writes one JSON file for the city.
-- GitHub Actions runs the extract, the tests and the build, then deploys to GitHub Pages. A monthly cron
-  picks up each new Overture release.
+- A GitHub Actions workflow runs the extract and the tests, then commits `public/data/city.json`.
+  A monthly cron picks up each new Overture release. Netlify builds and deploys on every push.
 
 ```
 scripts/extract.py        Overture -> public/data/city.json
@@ -66,15 +66,16 @@ tests/score.test.ts       36 unit tests for the scoring
 ```bash
 npm install
 
-# real data (needs network access to Overture's public bucket)
+npm run dev      # uses the committed extract in public/data/city.json
+npm test
+
+# refresh the extract yourself (needs network access to Overture's public bucket)
 pip install -r scripts/requirements.txt
 python scripts/extract.py
 
-# or a synthetic city for offline work; the app shows a banner when it runs on this
+# or a synthetic city for offline work; the app shows a banner when it runs on this.
+# It overwrites city.json, so do not commit the result.
 npm run fixture
-
-npm run dev
-npm test
 ```
 
 Another city: `python scripts/extract.py --city Oakland --bbox -122.36,37.70,-122.11,37.89`
