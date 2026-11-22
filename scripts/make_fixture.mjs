@@ -173,7 +173,13 @@ const CATS = [
   ['florist', 'Florist', 'specialty_retail', 'shopping', 0.6, ['Florals', 'Flower Shop']],
   ['movie_theater', 'Movie Theater', 'entertainment_venue', 'arts_and_entertainment', 0.2, ['Cinema', 'Theater', 'Picture House']],
 ];
-const cats = CATS.map(([id, label, parent, group]) => ({ id, label, parent, group }));
+const cats = CATS.map(([id, label, parent, group]) => ({
+  id,
+  label,
+  parent,
+  group,
+  path: parent === group ? [group, id] : [group, parent, id],
+}));
 
 // Invented chains, keyed by category id.
 const CHAINS = {

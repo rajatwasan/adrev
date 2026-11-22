@@ -44,6 +44,11 @@ the plan to a client, so every number needs to be traceable.
 The banner above the list compares competitor density in the radius with the citywide rate, which tells
 you whether to chase gaps or chase reach.
 
+## The data, as extracted
+
+San Francisco from Overture release 2026-11-18.0: 65,382 open places with a name and a category,
+383,651 address points, 1,196 hexagon cells, 35 ZIP zones. One JSON file, about 1.2 MB over the wire.
+
 ## Stack
 
 - Vite, TypeScript, MapLibre GL, h3-js. No framework and no backend.
@@ -58,7 +63,7 @@ src/score.ts              scoring, pure functions
 src/search.ts             name search
 src/map.ts                map layers
 src/main.ts               UI
-tests/score.test.ts       36 unit tests for the scoring
+tests/score.test.ts       unit tests for the scoring
 ```
 
 ## Run it
@@ -96,6 +101,10 @@ Another city: `python scripts/extract.py --city Oakland --bbox -122.36,37.70,-12
   That needs a routing engine and a backend, which did not earn its place in a first version.
 - **Anchors are a small hand written table.** Six rules keyed on taxonomy ids, with a general default.
   Easy to read, easy to be wrong about a niche category.
+- **Competitors follow Overture's taxonomy, which is uneven.** Rivals are a subtree: a general dentistry
+  practice competes with everything filed under dental clinic. But in the San Francisco extract about
+  1,600 listings carry only the top level `health_care` label, and some of those are dentists. They are
+  invisible as competitors. The switch between the narrow and the wider subtree is the manual override.
 - **Listings under 50% confidence are ignored.** Overture's confidence score filters places that may not
   exist. A missing competitor still means "none on record", and the copy says exactly that.
 - **Cut:** saved plans and share links, budget split across ZIPs, demographic overlays, multi location

@@ -485,3 +485,37 @@ describe('anchorRule ordering', () => {
     expect(anchorRule('steakhouse').label).toContain('gyms, theaters');
   });
 });
+
+describe('similar scope on real taxonomy shapes', () => {
+  it('treats parent, sibling and child categories as competitors', () => {
+    const cats = [
+      { id: 'restaurant', label: 'Restaurant', parent: 'food_and_drink', group: 'food_and_drink' },
+      { id: 'sushi_restaurant', label: 'Sushi restaurant', parent: 'restaurant', group: 'food_and_drink' },
+      { id: 'italian_restaurant', label: 'Italian restaurant', parent: 'restaurant', group: 'food_and_drink' },
+      { id: 'bank', label: 'Bank', parent: 'bank_or_credit_union', group: 'services_and_business' },
+    ];
+    const city = {
+      meta: { city: 't', bbox: [0, 0, 1, 1], release: 't', generated: 't', zoneKind: 'zip', reachSource: 'addresses' },
+      cats,
+      brands: [],
+      places: {
+        name: ['me', 'plain', 'italian', 'bank'],
+        lat: [37.77, 37.77, 37.77, 37.77],
+        lng: [-122.42, -122.42, -122.42, -122.42],
+        cat: [1, 0, 2, 3],
+        conf: [90, 90, 90, 90],
+        brand: [-1, -1, -1, -1],
+        addr: ['', '', '', ''],
+        cell: [0, 0, 0, 0],
+      },
+      cells: { res: 9, id: ['x'], lat: [37.77], lng: [-122.42], reach: [1000], zone: [0] },
+      zones: [{ id: '94103', label: '94103' }],
+    } as unknown as CityFile;
+    const subject = { name: 'me', lat: 37.77, lng: -122.42, cat: 1, placeIndex: 0 };
+    const base = { radiusMi: 1, priority: 'balanced' as const, minConf: 50 };
+    expect(buildTradeArea(city, subject, { ...base, scope: 'same' }).competitorIdx).toEqual([]);
+    expect(buildTradeArea(city, subject, { ...base, scope: 'group' }).competitorIdx).toEqual([1, 2]);
+    const generic = { ...subject, cat: 0, placeIndex: 1 };
+    expect(buildTradeArea(city, generic, { ...base, scope: 'group' }).competitorIdx).toEqual([0, 2]);
+  });
+});

@@ -11,8 +11,8 @@ export interface CityFile {
     reachSource: 'addresses' | 'buildings';
     synthetic?: boolean; // true only for the local dev fixture
   };
-  // id is taxonomy.primary, parent is the next level up, group is the top level
-  cats: { id: string; label: string; parent: string; group: string }[];
+  // id is taxonomy.primary; path is the full taxonomy.hierarchy, general to specific, ending in id
+  cats: { id: string; label: string; parent: string; group: string; path?: string[] }[];
   brands: string[];
   places: {
     name: string[];

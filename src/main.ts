@@ -1,6 +1,6 @@
 import './styles.css';
 import type { CityFile, Options, Priority, Scope, Subject, TradeArea } from './types';
-import { WEIGHTS, buildTradeArea, defaultSelection, pluralize, summarize } from './score';
+import { WEIGHTS, buildTradeArea, defaultScope, defaultSelection, pluralize, summarize } from './score';
 import { makeSearcher, type Searcher } from './search';
 import { AreaMap } from './map';
 import { copy, download, targetingList, toCsv } from './export';
@@ -186,7 +186,7 @@ function catOptions(): string {
   const counts = new Map<number, number>();
   for (const c of city.places.cat) counts.set(c, (counts.get(c) ?? 0) + 1);
   return [...counts.entries()]
-    .filter(([, n]) => n >= 5)
+    .filter(([, n]) => n >= 20)
     .sort((a, b) => city.cats[a[0]].label.localeCompare(city.cats[b[0]].label))
     .map(([c, n]) => `<option value="${c}">${esc(city.cats[c].label)} (${num(n)})</option>`)
     .join('');
@@ -218,7 +218,7 @@ function dropPin(lat: number, lng: number): void {
 }
 
 function start(subject: Subject): void {
-  options.scope = 'same';
+  options.scope = defaultScope(city, subject.cat);
   recompute(subject, true, true);
 }
 
@@ -293,10 +293,10 @@ function renderResult(): void {
             </div>
           </div>
           <div class="control">
-            <span class="field-label">Compete with</span>
+            <span class="field-label">Rivals</span>
             <div class="seg" role="group" aria-label="Competitor definition">
-              <button data-scope="same" title="Count only ${esc(cat.label.toLowerCase())} listings as competitors" class="${options.scope === 'same' ? 'on' : ''}" aria-pressed="${options.scope === 'same'}">Same type</button>
-              ${cat.parent !== cat.id ? `<button data-scope="group" class="${options.scope === 'group' ? 'on' : ''}" title="Count any ${esc(parentLabel)} as a competitor" aria-pressed="${options.scope === 'group'}">Similar types</button>` : ''}
+              <button data-scope="same" title="Only listings filed under ${esc(cat.label)}" class="${options.scope === 'same' ? 'on' : ''}" aria-pressed="${options.scope === 'same'}">${esc(cat.label)}</button>
+              ${cat.parent !== cat.id && cat.parent !== cat.group ? `<button data-scope="group" title="Every listing filed under ${esc(parentLabel)}" class="${options.scope === 'group' ? 'on' : ''}" aria-pressed="${options.scope === 'group'}">All ${esc(parentLabel)}</button>` : ''}
             </div>
           </div>
         </div>

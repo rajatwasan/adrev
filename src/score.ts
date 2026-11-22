@@ -78,10 +78,15 @@ const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 export function buildTradeArea(city: CityFile, subject: Subject, options: Options): TradeArea {
   const { cells, places, cats, zones } = city;
   const subjectCat = cats[subject.cat];
-  const isCompetitorCat = (c: number) =>
-    options.scope === 'same' ? c === subject.cat : cats[c].parent === subjectCat.parent;
+  // Competitors are a subtree of Overture's taxonomy. "same" roots it at the subject's own category,
+  // "group" one level up. A general dentistry practice therefore competes with every dental clinic,
+  // and a sushi bar with every Japanese restaurant, when the wider scope is on.
+  const pathOf = (c: number) => cats[c].path ?? [cats[c].group, cats[c].parent, cats[c].id];
+  const root = options.scope === 'same' ? subjectCat.id : subjectCat.parent;
+  const competitorCat = cats.map((_, c) => pathOf(c).includes(root));
+  const isCompetitorCat = (c: number) => competitorCat[c];
   const rule = anchorRule(subjectCat.id);
-  const anchorCat = cats.map((c, i) => i !== subject.cat && rule.anchors.test(c.id));
+  const anchorCat = cats.map((c, i) => !competitorCat[i] && rule.anchors.test(c.id));
 
   // 1. Cells inside the radius, grouped by zone.
   const inRadius = new Uint8Array(cells.id.length);
@@ -152,7 +157,7 @@ export function buildTradeArea(city: CityFile, subject: Subject, options: Option
   const nReach = minMax(raw.map((r) => r.reach));
   const nComp = minMax(raw.map((r) => r.competitorsPer1k));
   const nAnch = minMax(raw.map((r) => r.anchors));
-  const noun = options.scope === 'same' ? subjectCat.label.toLowerCase() : subjectCat.parent.replace(/_/g, ' ');
+  const noun = root.replace(/_/g, ' ');
 
   const results: ZoneResult[] = raw.map((r) => {
     const parts = {
@@ -229,4 +234,11 @@ export function summarize(area: TradeArea, selected: Set<string>) {
     share: area.totalReach ? reach / area.totalReach : 0,
     competitors,
   };
+}
+
+// Overture's taxonomy is deep in places (general_dentistry sits under dental_clinic).
+// For a deep leaf the useful default is the parent subtree, otherwise most rivals go uncounted.
+export function defaultScope(city: CityFile, cat: number): 'same' | 'group' {
+  const c = city.cats[cat];
+  return (c.path?.length ?? 3) >= 4 ? 'group' : 'same';
 }

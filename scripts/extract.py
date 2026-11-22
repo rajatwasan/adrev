@@ -128,6 +128,7 @@ def build(city: str, bbox, release: str, places, addresses, buildings) -> dict:
                     "label": label(primary),
                     "parent": hierarchy[-2] if len(hierarchy) > 1 else primary,
                     "group": hierarchy[0],
+                    "path": hierarchy,
                 }
             )
         b = -1
