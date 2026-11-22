@@ -1,12 +1,14 @@
 name: Refresh Overture extract
 
-# Pulls the city from Overture, checks it, and commits public/data/city.json.
-# Netlify redeploys on that commit.
+# Pulls every city in scripts/cities.json from Overture, checks the result, and publishes it to the
+# orphan "data" branch (force pushed, so the repo does not grow each month). Netlify pulls that
+# branch at build time; a small stamp commit on main triggers the redeploy.
 on:
   push:
-    branches: [main]
+    branches: [main, global]
     paths:
       - scripts/extract.py
+      - scripts/cities.json
       - scripts/requirements.txt
       - .github/workflows/data.yml
   schedule:
@@ -32,27 +34,33 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Extract San Francisco from Overture
+      - name: Extract cities from Overture
         run: |
           pip install -r scripts/requirements.txt
-          python scripts/extract.py
-      - name: Refuse to ship a synthetic or empty file
-        run: |
-          python - <<'PY'
-          import json
-          d = json.load(open('public/data/city.json'))
-          assert not d['meta'].get('synthetic'), 'synthetic fixture'
-          assert len(d['places']['name']) > 1000 and len(d['zones']) > 1
-          print(d['meta'], len(d['places']['name']), 'places', len(d['zones']), 'zones')
-          PY
+          rm -rf public/data && mkdir -p public/data
+          python scripts/extract.py --all
+          ls -la public/data | head -60
+          du -sh public/data
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - name: Commit the extract
+      - name: Publish the data branch
         run: |
+          cd public/data
+          git init -q -b data
           git config user.name "Rajat Wasan"
           git config user.email "rajatwasan12@gmail.com"
-          git add public/data/city.json
+          git add -A
+          git commit -q -m "Overture extract $(python -c "import json;print(json.load(open('index.json'))['release'])")"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data
+          rm -rf .git
+      - name: Stamp main so Netlify redeploys
+        if: github.ref == 'refs/heads/main'
+        run: |
+          python -c "import json;d=json.load(open('public/data/index.json'));print(d['release'], d['generated'], len(d['cities']), 'cities')" > data-version.txt
+          git config user.name "Rajat Wasan"
+          git config user.email "rajatwasan12@gmail.com"
+          git add data-version.txt
           git diff --cached --quiet && echo "no change" && exit 0
-          git commit -m "Data: Overture extract $(python -c "import json;print(json.load(open('public/data/city.json'))['meta']['release'])")"
+          git commit -m "Data: $(cat data-version.txt)"
           git push

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Extract one city from Overture Maps into public/data/city.json.
+"""Extract cities from Overture Maps into public/data/<slug>.json plus an index.json.
 
 Reads the cloud hosted GeoParquet directly with DuckDB (no account, no key):
   places     -> businesses with a name, a category and a confidence score
-  addresses  -> address points, the reach proxy, plus their ZIP codes
-  buildings  -> fallback reach proxy if the city has no address coverage
+  addresses  -> address points, the reach proxy, plus their postal codes
+  buildings  -> fallback reach proxy where a city has no address coverage
 
 Usage:
-  pip install duckdb h3
-  python scripts/extract.py                 # latest release, San Francisco
-  OVERTURE_RELEASE=2026-11-18.0 python scripts/extract.py
-  python scripts/extract.py --city "Oakland" --bbox -122.36,37.70,-122.11,37.89
+  pip install -r scripts/requirements.txt
+  python scripts/extract.py --all                    # every city in scripts/cities.json
+  python scripts/extract.py --only san-francisco     # one of them
+  OVERTURE_RELEASE=2026-11-18.0 python scripts/extract.py --all
 """
 from __future__ import annotations
 
@@ -19,7 +19,9 @@ import datetime as dt
 import json
 import os
 import sys
+import re
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -27,11 +29,14 @@ import h3
 
 STAC = "https://stac.overturemaps.org/catalog.json"
 BUCKET = "s3://overturemaps-us-west-2/release"
-SF_BBOX = (-122.5155, 37.7045, -122.3550, 37.8350)  # west, south, east, north
+HERE = Path(__file__).resolve().parent
+CITIES = json.loads((HERE / "cities.json").read_text())
+MILES = {"US", "GB"}  # everyone else reads distances in km
 H3_RES = 9  # about 0.1 square km per cell, roughly a city block or two
-MIN_CONFIDENCE = 0.4  # Overture's existence score; below this a listing is a coin flip
+MIN_CONFIDENCE = 0.5  # Overture's existence score; below this a listing is a coin flip
 MIN_ADDRESSES = 20_000  # fewer than this and we treat address coverage as missing
-MIN_ZIP_SHARE = 0.7  # share of cells that must resolve to a ZIP before we trust ZIP zones
+MIN_ZIP_SHARE = 0.7  # share of cells that must resolve to a postal code before we trust postal zones
+MAX_ZONES = 120  # more than this and the codes are too fine to be a targeting unit
 
 
 def latest_release() -> str:
@@ -65,12 +70,10 @@ def fetch(release: str, bbox):
           AND coalesce(operating_status, 'open') = 'open'
         """
     ).fetchall()
-    print(f"places: {len(places):,}", file=sys.stderr)
 
     addresses = con.execute(
         f"SELECT bbox.xmin, bbox.ymin, postcode FROM {src('addresses', 'address')} WHERE {where}"
     ).fetchall()
-    print(f"addresses: {len(addresses):,}", file=sys.stderr)
 
     buildings = []
     if len(addresses) < MIN_ADDRESSES:
@@ -78,22 +81,38 @@ def fetch(release: str, bbox):
             f"""SELECT (bbox.xmin + bbox.xmax) / 2, (bbox.ymin + bbox.ymax) / 2
                 FROM {src('buildings', 'building')} WHERE {where}"""
         ).fetchall()
-        print(f"buildings (fallback): {len(buildings):,}", file=sys.stderr)
     return places, addresses, buildings
 
 
-def zip5(value) -> str | None:
+def postal(value, country: str) -> str | None:
+    """Reduce a postal code to the unit an ad platform targets. Returns None when it does not parse."""
     if not value:
         return None
-    digits = str(value).strip()[:5]
-    return digits if len(digits) == 5 and digits.isdigit() else None
+    raw = str(value).strip().upper()
+    digits = re.sub(r"\D", "", raw)
+    if country == "US":
+        return digits[:5] if len(digits) >= 5 else None
+    if country == "GB":  # outward code: "SW1A 1AA" -> "SW1A"
+        out = raw.split()[0] if " " in raw else raw[:-3]
+        return out if re.fullmatch(r"[A-Z]{1,2}\d[A-Z\d]?", out) else None
+    if country == "CA":  # forward sortation area: "M5V 2T6" -> "M5V"
+        out = raw.replace(" ", "")[:3]
+        return out if re.fullmatch(r"[A-Z]\d[A-Z]", out) else None
+    if country == "IE":  # routing key: "D02 X285" -> "D02"
+        out = raw.replace(" ", "")[:3]
+        return out if re.fullmatch(r"[A-Z][\dW]{2}", out) else None
+    trim = {"NL": 4, "PT": 4, "JP": 3, "KR": 3, "BR": 5, "SG": 2, "PL": 3}.get(country)
+    if trim:
+        return digits[:trim] if len(digits) >= trim else None
+    compact = re.sub(r"[^A-Z0-9]", "", raw)
+    return compact if 3 <= len(compact) <= 7 else None
 
 
 def label(cat_id: str) -> str:
     return cat_id.replace("_", " ").capitalize()
 
 
-def build(city: str, bbox, release: str, places, addresses, buildings) -> dict:
+def build(city: str, bbox, release: str, places, addresses, buildings, country: str = "US", slug: str = "") -> dict:
     """Pure transform from query rows to the city file. Kept separate so it can be tested offline."""
     cell_of = lambda lat, lng: h3.latlng_to_cell(lat, lng, H3_RES)
 
@@ -104,7 +123,7 @@ def build(city: str, bbox, release: str, places, addresses, buildings) -> dict:
         for lng, lat, postcode in addresses:
             c = cell_of(lat, lng)
             reach[c] += 1
-            z = zip5(postcode)
+            z = postal(postcode, country)
             if z:
                 zip_votes[c][z] += 1
     else:
@@ -136,7 +155,7 @@ def build(city: str, bbox, release: str, places, addresses, buildings) -> dict:
             b = brands.setdefault(brand, len(brands))
         c = cell_of(lat, lng)
         place_cells.append(c)
-        z = zip5(postcode)
+        z = postal(postcode, country)
         if z:
             place_zip_votes[c][z] += 1
         cols["name"].append(name.strip())
@@ -160,7 +179,7 @@ def build(city: str, bbox, release: str, places, addresses, buildings) -> dict:
         if votes:
             zone_of[c] = votes.most_common(1)[0][0]
     zip_share = len(zone_of) / max(1, len(cell_ids))
-    zone_kind = "zip" if zip_share >= MIN_ZIP_SHARE else "hex"
+    zone_kind = "zip" if zip_share >= MIN_ZIP_SHARE and 2 <= len(set(zone_of.values())) <= MAX_ZONES else "hex"
     if zone_kind == "zip":
         seeded = dict(zone_of)
         for c in cell_ids:
@@ -184,7 +203,10 @@ def build(city: str, bbox, release: str, places, addresses, buildings) -> dict:
     centers = [h3.cell_to_latlng(c) for c in cell_ids]
     return {
         "meta": {
+            "slug": slug,
             "city": city,
+            "country": country,
+            "units": "mi" if country in MILES else "km",
             "bbox": list(bbox),
             "release": release,
             "generated": dt.date.today().isoformat(),
@@ -206,34 +228,64 @@ def build(city: str, bbox, release: str, places, addresses, buildings) -> dict:
     }
 
 
+def run_city(release: str, spec: dict, out_dir: Path) -> dict | None:
+    """Extract one city. Returns its index entry, or None when the data is too thin to ship."""
+    bbox = tuple(spec["bbox"])
+    try:
+        rows = fetch(release, bbox)
+        data = build(spec["name"], bbox, release, *rows, country=spec["country"], slug=spec["slug"])
+    except Exception as err:  # one bad city must not sink the rest
+        print(f"[{spec['slug']}] FAILED: {err}", file=sys.stderr)
+        return None
+    m = data["meta"]
+    n_places, total_reach = len(data["places"]["name"]), sum(data["cells"]["reach"])
+    summary = (
+        f"[{spec['slug']}] {n_places:,} places, {len(data['cats'])} categories, {len(data['cells']['id']):,} cells, "
+        f"{len(data['zones'])} {m['zoneKind']} zones, reach {total_reach:,} ({m['reachSource']})"
+    )
+    if n_places < 500 or total_reach < 1000:
+        print(summary + " -> SKIPPED, too thin", file=sys.stderr)
+        return None
+    path = out_dir / f"{spec['slug']}.json"
+    path.write_text(json.dumps(data, separators=(",", ":"), ensure_ascii=False))
+    print(summary + f", {path.stat().st_size / 1e6:.1f} MB", file=sys.stderr)
+    return {
+        "slug": spec["slug"],
+        "city": spec["name"],
+        "country": spec["country"],
+        "places": n_places,
+        "reach": total_reach,
+        "reachSource": m["reachSource"],
+        "zoneKind": m["zoneKind"],
+        "zones": len(data["zones"]),
+    }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--city", default="San Francisco")
-    ap.add_argument("--bbox", default=",".join(map(str, SF_BBOX)), help="west,south,east,north")
-    ap.add_argument("--out", default=str(Path(__file__).resolve().parent.parent / "public/data/city.json"))
+    ap.add_argument("--all", action="store_true", help="every city in scripts/cities.json")
+    ap.add_argument("--only", default="", help="comma separated slugs")
+    ap.add_argument("--out", default=str(HERE.parent / "public/data"))
+    ap.add_argument("--workers", type=int, default=6)
     args = ap.parse_args()
-    bbox = tuple(float(x) for x in args.bbox.split(","))
+    wanted = set(filter(None, args.only.split(",")))
+    specs = [c for c in CITIES if args.all or c["slug"] in wanted]
+    if not specs:
+        sys.exit("Nothing to do. Pass --all or --only <slug>.")
 
     release = latest_release()
-    print(f"Overture release {release}, bbox {bbox}", file=sys.stderr)
-    data = build(args.city, bbox, release, *fetch(release, bbox))
-
-    m = data["meta"]
-    n_places, n_cells = len(data["places"]["name"]), len(data["cells"]["id"])
-    total_reach = sum(data["cells"]["reach"])
-    print(
-        f"{n_places:,} places, {len(data['cats'])} categories, {n_cells:,} cells, "
-        f"{len(data['zones'])} {m['zoneKind']} zones, reach {total_reach:,} ({m['reachSource']})",
-        file=sys.stderr,
-    )
-    # Fail loudly instead of shipping an empty map.
-    if n_places < 1000 or total_reach < 1000:
-        sys.exit("Extract looks empty. Check the bbox and the release.")
-
+    print(f"Overture release {release}, {len(specs)} cities", file=sys.stderr)
     out = Path(args.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(data, separators=(",", ":"), ensure_ascii=False))
-    print(f"wrote {out} ({out.stat().st_size / 1e6:.1f} MB)", file=sys.stderr)
+    out.mkdir(parents=True, exist_ok=True)
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        entries = list(pool.map(lambda spec: run_city(release, spec, out), specs))
+    done = [e for e in entries if e]
+    print(f"{len(done)} of {len(specs)} cities shipped", file=sys.stderr)
+    # Fail loudly instead of deploying a hollow site.
+    if len(done) < max(1, len(specs) // 2):
+        sys.exit("Too many cities failed.")
+    index = {"release": release, "generated": dt.date.today().isoformat(), "cities": done}
+    (out / "index.json").write_text(json.dumps(index, indent=1, ensure_ascii=False))
 
 
 if __name__ == "__main__":
