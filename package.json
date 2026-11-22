@@ -8,7 +8,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "fixture": "node scripts/make_fixture.mjs",
-    "extract": "python scripts/extract.py"
+    "extract": "python scripts/extract.py --all",
+    "data": "rm -rf public/data && git clone --depth 1 --branch data https://github.com/rajatwasan/adrev.git public/data && rm -rf public/data/.git"
   },
   "devDependencies": {
     "@types/geojson": "^7946.0.16",

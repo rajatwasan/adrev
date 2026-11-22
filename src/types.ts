@@ -3,7 +3,10 @@
 
 export interface CityFile {
   meta: {
+    slug?: string;
     city: string;
+    country?: string; // ISO alpha 2
+    units?: 'mi' | 'km';
     bbox: [number, number, number, number]; // west, south, east, north
     release: string; // Overture release the extract came from
     generated: string; // ISO date
@@ -80,4 +83,20 @@ export interface TradeArea {
   anchorLabel: string;
   competitorLabel: string;
   saturation: { areaPer10k: number; cityPer10k: number; ratio: number } | null;
+}
+
+// public/data/index.json: one entry per city that shipped.
+export interface CityIndex {
+  release: string;
+  generated: string;
+  cities: {
+    slug: string;
+    city: string;
+    country: string;
+    places: number;
+    reach: number;
+    reachSource: 'addresses' | 'buildings';
+    zoneKind: 'zip' | 'hex';
+    zones: number;
+  }[];
 }

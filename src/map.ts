@@ -174,6 +174,12 @@ export class AreaMap {
     });
   }
 
+  // Swap the city under the map: new grid, new bounds.
+  setCity(city: CityFile): void {
+    this.city = city;
+    this.boundaries.clear();
+  }
+
   setPinMode(on: boolean): void {
     this.pinMode = on;
     this.map.getCanvas().style.cursor = on ? 'crosshair' : '';
@@ -197,7 +203,7 @@ export class AreaMap {
     this.subjectMarker = null;
     this.clearLabels();
     const [w, s, e, n] = this.city.meta.bbox;
-    this.map.fitBounds([w, s, e, n], { padding: 20, duration: 500 });
+    this.map.fitBounds([w, s, e, n], { padding: 20, duration: 0 });
   }
 
   private set(id: string, data: FC): void {

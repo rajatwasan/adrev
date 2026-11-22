@@ -1,5 +1,5 @@
 // Deterministic synthetic San Francisco extract for local development and tests.
-// Writes public/data/city.json in the CityFile shape. No network, seeded PRNG.
+// Writes public/data/san-francisco.json (CityFile shape) and a one city index.json. No network, seeded PRNG.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -287,6 +287,9 @@ void catPos;
 // ---- 5. Write ----------------------------------------------------------------
 const city = {
   meta: {
+    slug: 'san-francisco',
+    country: 'US',
+    units: 'mi',
     city: 'San Francisco',
     bbox: BBOX,
     release: 'fixture',
@@ -302,9 +305,28 @@ const city = {
   zones,
 };
 
-const out = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data', 'city.json');
+const out = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data', 'san-francisco.json');
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, JSON.stringify(city) + '\n');
+writeFileSync(
+  resolve(dirname(out), 'index.json'),
+  JSON.stringify({
+    release: 'fixture',
+    generated: 'fixture',
+    cities: [
+      {
+        slug: 'san-francisco',
+        city: 'San Francisco',
+        country: 'US',
+        places: city.places.name.length,
+        reach: city.cells.reach.reduce((a, b) => a + b, 0),
+        reachSource: 'addresses',
+        zoneKind: 'zip',
+        zones: city.zones.length,
+      },
+    ],
+  }) + '\n',
+);
 const totalReach = reach.reduce((s, r) => s + r, 0);
 console.log(
   `fixture: ${cellIds.length} cells, ${zones.length} zones, ${P.name.length} places, ${totalReach} total reach`,

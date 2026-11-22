@@ -75,8 +75,16 @@ function minMax(values: number[]): (v: number) => number {
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 
+export const KM_PER_MI = 1.609344;
+
+export function formatDistance(mi: number, units: 'mi' | 'km' = 'mi'): string {
+  return units === 'km' ? `${(mi * KM_PER_MI).toFixed(1)} km` : `${mi.toFixed(1)} mi`;
+}
+
 export function buildTradeArea(city: CityFile, subject: Subject, options: Options): TradeArea {
   const { cells, places, cats, zones } = city;
+  const units = city.meta.units ?? 'mi';
+  const reachNoun = city.meta.reachSource === 'buildings' ? 'buildings' : 'addresses';
   const subjectCat = cats[subject.cat];
   // Competitors are a subtree of Overture's taxonomy. "same" roots it at the subject's own category,
   // "group" one level up. A general dentistry practice therefore competes with every dental clinic,
@@ -171,8 +179,8 @@ export function buildTradeArea(city: CityFile, subject: Subject, options: Option
     const compText =
       r.competitors === 0
         ? 'no rivals on record'
-        : `${r.competitors} rival${r.competitors === 1 ? '' : 's'} (${r.competitorsPer1k.toFixed(1)} per 1,000 addresses)`;
-    const reason = `${fmt(r.reach)} addresses, ${compText}, ${r.anchors} anchor${r.anchors === 1 ? '' : 's'} nearby, ${r.distanceMi.toFixed(1)} mi away`;
+        : `${r.competitors} rival${r.competitors === 1 ? '' : 's'} (${r.competitorsPer1k.toFixed(1)} per 1,000 ${reachNoun})`;
+    const reason = `${fmt(r.reach)} ${reachNoun}, ${compText}, ${r.anchors} anchor${r.anchors === 1 ? '' : 's'} nearby, ${formatDistance(r.distanceMi, units)} away`;
     return { ...r, id: zones[r.zone].id, label: zones[r.zone].label, parts, score, reason };
   });
   results.sort((a, b) => b.score - a.score || b.reach - a.reach);

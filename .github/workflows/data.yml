@@ -5,7 +5,7 @@ name: Refresh Overture extract
 # branch at build time; a small stamp commit on main triggers the redeploy.
 on:
   push:
-    branches: [main, global]
+    branches: [main]
     paths:
       - scripts/extract.py
       - scripts/cities.json

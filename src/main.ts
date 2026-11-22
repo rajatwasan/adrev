@@ -1,6 +1,6 @@
 import './styles.css';
-import type { CityFile, Options, Priority, Scope, Subject, TradeArea } from './types';
-import { WEIGHTS, buildTradeArea, defaultScope, defaultSelection, summarize } from './score';
+import type { CityFile, CityIndex, Options, Priority, Scope, Subject, TradeArea } from './types';
+import { KM_PER_MI, WEIGHTS, buildTradeArea, defaultScope, defaultSelection, summarize } from './score';
 import { makeSearcher, type Searcher } from './search';
 import { AreaMap } from './map';
 import { copy, download, targetingList, toCsv } from './export';
@@ -13,6 +13,7 @@ const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const num = (n: number) => Math.round(n).toLocaleString('en-US');
 
+let index: CityIndex;
 let city: CityFile;
 let searcher: Searcher;
 let map: AreaMap;
@@ -21,7 +22,17 @@ let selected = new Set<string>();
 let hoverId: string | null = null;
 const options: Options = { radiusMi: 2, priority: 'balanced', scope: 'same', minConf: 50 };
 
-const RADII = [1, 2, 3, 5];
+// Radius choices per unit system. The model works in miles; km cities just get round km numbers.
+const RADII = { mi: [1, 2, 3, 5], km: [2, 3, 5, 8] };
+let radiusStep = 1;
+const units = () => city.meta.units ?? 'mi';
+const radiusLabel = (step = radiusStep) => `${RADII[units()][step]} ${units()}`;
+const applyRadius = () => {
+  const v = RADII[units()][radiusStep];
+  options.radiusMi = units() === 'km' ? v / KM_PER_MI : v;
+};
+const reachUnit = () => (city.meta.reachSource === 'buildings' ? 'buildings' : 'addresses');
+const DEFAULT_CITY = 'san-francisco';
 const PRIORITIES: { id: Priority; label: string; hint: string }[] = [
   { id: 'balanced', label: 'Balanced', hint: 'Reach and open ground weighted about equally' },
   { id: 'reach', label: 'Reach', hint: 'Favor zones with the most addresses' },
@@ -36,14 +47,33 @@ init().catch((err) => {
 
 async function init(): Promise<void> {
   panel.innerHTML = `<div class="pad"><div class="brand">Adrev</div><p class="muted">Loading the city…</p></div>`;
-  const res = await fetch('./data/city.json');
-  if (!res.ok) throw new Error(`city.json ${res.status}`);
+  const res = await fetch('./data/index.json');
+  if (!res.ok) throw new Error(`index.json ${res.status}`);
+  index = await res.json();
+  index.cities.sort((a, b) => a.city.localeCompare(b.city));
+  const asked = new URLSearchParams(location.search).get('city');
+  const has = (slug: string | null) => !!slug && index.cities.some((c) => c.slug === slug);
+  await loadCity(has(asked) ? asked! : has(DEFAULT_CITY) ? DEFAULT_CITY : index.cities[0].slug);
+}
+
+async function loadCity(slug: string): Promise<void> {
+  const res = await fetch(`./data/${slug}.json`);
+  if (!res.ok) throw new Error(`${slug}.json ${res.status}`);
   city = await res.json();
   searcher = makeSearcher(city);
-  map = new AreaMap(document.getElementById('map')!, city, {
-    onZoneClick: toggleZone,
-    onMapClick: (lat, lng) => dropPin(lat, lng),
-  });
+  applyRadius();
+  if (!map) {
+    map = new AreaMap(document.getElementById('map')!, city, {
+      onZoneClick: toggleZone,
+      onMapClick: (lat, lng) => dropPin(lat, lng),
+    });
+  } else {
+    map.setCity(city);
+  }
+  const url = new URL(location.href);
+  url.searchParams.set('city', slug);
+  history.replaceState(null, '', url);
+  document.title = `Adrev: where to aim a local ad budget in ${city.meta.city}`;
   renderStart();
 }
 
@@ -73,13 +103,20 @@ function renderStart(): void {
   void map.showCity();
   const totalReach = city.cells.reach.reduce((s, r) => s + r, 0);
   const unit = city.meta.reachSource === 'addresses' ? 'address points' : 'buildings';
+  const reachWhat = city.meta.reachSource === 'addresses' ? 'households' : 'buildings';
   panel.innerHTML = `
     <div class="pad start">
       <div class="brand">Adrev</div>
       ${city.meta.synthetic ? `<p class="warn">Demo data. This build is running on a synthetic fixture, not the Overture extract.</p>` : ''}
       <h1>Where should your local ad budget go?</h1>
-      <p class="lede">Pick a business in ${esc(city.meta.city)}. Adrev ranks the ${zoneWord(2)} around it by how many
-      households you can reach, how crowded the competition is, and what draws your customers there already.</p>
+      <p class="lede">Pick a business. Adrev ranks the ${zoneWord(2)} around it by how many
+      ${reachWhat} you can reach, how crowded the competition is, and what draws your customers there already.</p>
+
+      <label class="field-label" for="citysel">City</label>
+      <select id="citysel">
+        ${index.cities.map((c) => `<option value="${c.slug}"${c.slug === city.meta.slug ? ' selected' : ''}>${esc(c.city)}, ${esc(c.country)}</option>`).join('')}
+      </select>
+      <p class="muted small citynote">${index.cities.length} cities on six continents, each cut from the same Overture release.</p>
 
       <label class="field-label" for="q">Find your business</label>
       <div class="combo">
@@ -114,6 +151,16 @@ function renderStart(): void {
         Overture Maps release ${esc(city.meta.release)}
       </p>
     </div>`;
+
+  panel.querySelector<HTMLSelectElement>('#citysel')!.addEventListener('change', (e) => {
+    const slug = (e.target as HTMLSelectElement).value;
+    panel.querySelector('.citynote')!.textContent = 'Loading…';
+    loadCity(slug).catch((err) => {
+      console.error(err);
+      toast('That city did not load. Try again.');
+      renderStart();
+    });
+  });
 
   const q = panel.querySelector<HTMLInputElement>('#q')!;
   const list = panel.querySelector<HTMLUListElement>('#results')!;
@@ -193,8 +240,9 @@ function catOptions(selectedCat = -1): string {
 }
 
 function zoneWord(n: number): string {
-  if (city.meta.zoneKind === 'zip') return n === 1 ? 'ZIP code' : 'ZIP codes';
-  return n === 1 ? 'area' : 'areas';
+  if (city.meta.zoneKind !== 'zip') return n === 1 ? 'area' : 'areas';
+  const word = (city.meta.country ?? 'US') === 'US' ? 'ZIP code' : 'postal code';
+  return n === 1 ? word : word + 's';
 }
 
 /* ---------- choosing a subject ---------- */
@@ -243,14 +291,14 @@ function toggleZone(id: string): void {
 
 function insight(a: TradeArea): string {
   const noun = esc(a.competitorLabel);
-  const r = a.options.radiusMi;
+  const r = radiusLabel();
   if (a.zones.length === 0)
-    return `<p class="insight flat"><strong>Too few addresses within ${r} mi to rank.</strong> Widen the radius.</p>`;
+    return `<p class="insight flat"><strong>Too few ${reachUnit()} within ${r} to rank.</strong> Widen the radius.</p>`;
   if (a.competitorIdx.length === 0)
-    return `<p class="insight good"><strong>Open field.</strong> No ${noun} listings on record within ${r} mi.</p>`;
+    return `<p class="insight good"><strong>Open field.</strong> No ${noun} listings on record within ${r}.</p>`;
   if (!a.saturation) return '';
   const { areaPer10k, cityPer10k, ratio } = a.saturation;
-  const rates = `${areaPer10k.toFixed(1)} ${noun} listings per 10,000 addresses here, against ${cityPer10k.toFixed(1)} citywide.`;
+  const rates = `${areaPer10k.toFixed(1)} ${noun} listings per 10,000 ${reachUnit()} here, against ${cityPer10k.toFixed(1)} citywide.`;
   if (ratio >= 1.25)
     return `<p class="insight hot"><strong>Crowded market: ${ratio.toFixed(1)}× the city rate.</strong> ${rates} Spend where the gaps are, not evenly.</p>`;
   if (ratio <= 0.8)
@@ -266,7 +314,7 @@ function renderResult(): void {
   const sum = summarize(a, selected);
   const w = WEIGHTS[options.priority];
   const scroll = panel.querySelector('.zones')?.scrollTop ?? 0;
-  const unit = city.meta.reachSource === 'addresses' ? 'addresses' : 'buildings';
+  const unit = reachUnit();
   const addr = s.placeIndex >= 0 ? city.places.addr[s.placeIndex] : 'Dropped pin';
   const parentLabel = cat.parent.replace(/_/g, ' ');
   const broad = cat.id === cat.group; // top level label only, too coarse to count rivals
@@ -283,7 +331,7 @@ function renderResult(): void {
           <div class="control">
             <span class="field-label">Reach</span>
             <div class="seg" role="group" aria-label="Radius">
-              ${RADII.map((r) => `<button data-radius="${r}" class="${r === options.radiusMi ? 'on' : ''}" aria-pressed="${r === options.radiusMi}">${r} mi</button>`).join('')}
+              ${RADII[units()].map((_, i) => `<button data-radius="${i}" class="${i === radiusStep ? 'on' : ''}" aria-pressed="${i === radiusStep}">${radiusLabel(i)}</button>`).join('')}
             </div>
           </div>
           <div class="control">
@@ -341,13 +389,13 @@ function renderResult(): void {
         <summary>How the score works</summary>
         <p>Each ${zoneWord(1)} gets four parts, scaled 0 to 1 across the ${zoneWord(2)} in range, then weighted:</p>
         <ul>
-          <li><i class="key b-reach"></i><strong>Reach ${pct(w.reach)}</strong>: ${unit} inside the radius (Overture ${unit === 'addresses' ? 'addresses' : 'buildings'} theme).</li>
+          <li><i class="key b-reach"></i><strong>Reach ${pct(w.reach)}</strong>: ${unit} inside the radius (Overture ${unit} theme).</li>
           <li><i class="key b-gap"></i><strong>Open ground ${pct(w.gap)}</strong>: fewer competitors per 1,000 ${unit} scores higher.</li>
           <li><i class="key b-anchor"></i><strong>Anchors ${pct(w.anchors)}</strong>: ${esc(a.anchorLabel)} nearby.</li>
           <li><i class="key b-prox"></i><strong>Proximity ${pct(w.proximity)}</strong>: closer to the business scores higher.</li>
         </ul>
-        <p class="muted small">Places with an Overture confidence under ${options.minConf}% are ignored. ${zoneWord(1) === 'ZIP code' ? 'ZIP shapes are approximated from address points on a hexagon grid, so edges are rough.' : ''}
-        Address counts are a proxy for households, not a census.</p>
+        <p class="muted small">Places with an Overture confidence under ${options.minConf}% are ignored. ${city.meta.zoneKind === 'zip' ? 'Postal zones are approximated on a hexagon grid, so edges are rough.' : ''}
+        ${unit === 'addresses' ? 'Address counts are a proxy for households, not a census.' : 'This city has no open address data in Overture, so building counts stand in for reach.'}</p>
       </details>
 
       <footer class="pad export">
@@ -356,10 +404,10 @@ function renderResult(): void {
           <span class="muted">(${pct(sum.share)} of range)</span> · ${sum.competitors} competitor${sum.competitors === 1 ? '' : 's'} inside
         </div>
         <div class="btns">
-          <button class="btn primary" id="copy" ${sum.count ? '' : 'disabled'}>Copy ${city.meta.zoneKind === 'zip' ? 'ZIP list' : 'pin list'}</button>
+          <button class="btn primary" id="copy" ${sum.count ? '' : 'disabled'}>Copy ${city.meta.zoneKind === 'zip' ? ((city.meta.country ?? 'US') === 'US' ? 'ZIP list' : 'postal codes') : 'pin list'}</button>
           <button class="btn" id="csv" ${a.zones.length ? '' : 'disabled'}>Download CSV</button>
         </div>
-        <p class="muted small">Paste the list into location targeting in Meta Ads or Google Ads.</p>
+        <p class="muted small">${city.meta.zoneKind === 'zip' ? 'Paste the list into location targeting in Meta Ads or Google Ads.' : 'No usable postal codes here, so the export is pin drops: latitude, longitude, radius.'}</p>
       </footer>
     </div>`;
 
@@ -379,7 +427,8 @@ function renderResult(): void {
     const b = (e.target as HTMLElement).closest<HTMLElement>('button');
     if (!b || !area) return;
     if (b.dataset.radius) {
-      options.radiusMi = Number(b.dataset.radius);
+      radiusStep = Number(b.dataset.radius);
+      applyRadius();
       recompute(area.subject, true, true);
     } else if (b.dataset.priority) {
       options.priority = b.dataset.priority as Priority;
