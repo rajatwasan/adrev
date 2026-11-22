@@ -1,6 +1,6 @@
 import './styles.css';
 import type { CityFile, Options, Priority, Scope, Subject, TradeArea } from './types';
-import { WEIGHTS, buildTradeArea, defaultScope, defaultSelection, pluralize, summarize } from './score';
+import { WEIGHTS, buildTradeArea, defaultScope, defaultSelection, summarize } from './score';
 import { makeSearcher, type Searcher } from './search';
 import { AreaMap } from './map';
 import { copy, download, targetingList, toCsv } from './export';
@@ -182,13 +182,13 @@ function renderStart(): void {
   q.focus({ preventScroll: true });
 }
 
-function catOptions(): string {
+function catOptions(selectedCat = -1): string {
   const counts = new Map<number, number>();
   for (const c of city.places.cat) counts.set(c, (counts.get(c) ?? 0) + 1);
   return [...counts.entries()]
-    .filter(([, n]) => n >= 20)
+    .filter(([c, n]) => n >= 20 || c === selectedCat)
     .sort((a, b) => city.cats[a[0]].label.localeCompare(city.cats[b[0]].label))
-    .map(([c, n]) => `<option value="${c}">${esc(city.cats[c].label)} (${num(n)})</option>`)
+    .map(([c, n]) => `<option value="${c}"${c === selectedCat ? ' selected' : ''}>${esc(city.cats[c].label)} (${num(n)})</option>`)
     .join('');
 }
 
@@ -242,16 +242,15 @@ function toggleZone(id: string): void {
 /* ---------- result screen ---------- */
 
 function insight(a: TradeArea): string {
-  const noun = a.competitorLabel;
-  const many = pluralize(noun);
+  const noun = esc(a.competitorLabel);
   const r = a.options.radiusMi;
   if (a.zones.length === 0)
     return `<p class="insight flat"><strong>Too few addresses within ${r} mi to rank.</strong> Widen the radius.</p>`;
   if (a.competitorIdx.length === 0)
-    return `<p class="insight good"><strong>Open field.</strong> No competing ${esc(noun)} on record within ${r} mi.</p>`;
+    return `<p class="insight good"><strong>Open field.</strong> No ${noun} listings on record within ${r} mi.</p>`;
   if (!a.saturation) return '';
   const { areaPer10k, cityPer10k, ratio } = a.saturation;
-  const rates = `${areaPer10k.toFixed(1)} ${esc(many)} per 10,000 addresses here, against ${cityPer10k.toFixed(1)} citywide.`;
+  const rates = `${areaPer10k.toFixed(1)} ${noun} listings per 10,000 addresses here, against ${cityPer10k.toFixed(1)} citywide.`;
   if (ratio >= 1.25)
     return `<p class="insight hot"><strong>Crowded market: ${ratio.toFixed(1)}× the city rate.</strong> ${rates} Spend where the gaps are, not evenly.</p>`;
   if (ratio <= 0.8)
@@ -270,6 +269,7 @@ function renderResult(): void {
   const unit = city.meta.reachSource === 'addresses' ? 'addresses' : 'buildings';
   const addr = s.placeIndex >= 0 ? city.places.addr[s.placeIndex] : 'Dropped pin';
   const parentLabel = cat.parent.replace(/_/g, ' ');
+  const broad = cat.id === cat.group; // top level label only, too coarse to count rivals
 
   panel.innerHTML = `
     <div class="result">
@@ -292,6 +292,15 @@ function renderResult(): void {
               ${PRIORITIES.map((p) => `<button data-priority="${p.id}" title="${p.hint}" class="${p.id === options.priority ? 'on' : ''}" aria-pressed="${p.id === options.priority}">${p.label}</button>`).join('')}
             </div>
           </div>
+          <div class="control">
+            <label class="field-label" for="typesel">Type</label>
+            <select id="typesel" class="compact" aria-describedby="typehint">${catOptions(s.cat)}</select>
+          </div>
+          ${
+            broad
+              ? `<p id="typehint" class="hint">Overture files this listing under the broad label “${esc(cat.label)}”. Pick its real type above for a meaningful rival count.</p>`
+              : ''
+          }
           <div class="control">
             <span class="field-label">Rivals</span>
             <div class="seg" role="group" aria-label="Competitor definition">
@@ -379,6 +388,12 @@ function renderResult(): void {
       options.scope = b.dataset.scope as Scope;
       recompute(area.subject, true, false);
     }
+  });
+  panel.querySelector<HTMLSelectElement>('#typesel')!.addEventListener('change', (e) => {
+    if (!area) return;
+    const next = Number((e.target as HTMLSelectElement).value);
+    options.scope = defaultScope(city, next);
+    recompute({ ...area.subject, cat: next }, true, false);
   });
   zonesEl.addEventListener('change', (e) => {
     const li = (e.target as HTMLElement).closest<HTMLElement>('[data-zone]');

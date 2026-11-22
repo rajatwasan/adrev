@@ -134,3 +134,6 @@ input[type='search']:focus, select:focus, button:focus-visible, .zone input:focu
   .control { grid-template-columns: 84px 1fr; }
   .seg button { padding: 6px 3px; font-size: 12px; }
 }
+
+select.compact { padding: 7px 10px; font-size: 13px; border-radius: 9px; }
+.hint { margin: 0; font-size: 12.5px; background: #fef3c7; border: 1px solid #fcd34d; color: #78350f; padding: 7px 10px; border-radius: 8px; }

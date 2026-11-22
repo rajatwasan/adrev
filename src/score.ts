@@ -170,9 +170,9 @@ export function buildTradeArea(city: CityFile, subject: Subject, options: Option
       100 * (w.reach * parts.reach + w.gap * parts.gap + w.anchors * parts.anchors + w.proximity * parts.proximity);
     const compText =
       r.competitors === 0
-        ? `no competing ${noun} on record`
-        : `${r.competitors} competing ${r.competitors === 1 ? noun : pluralize(noun)} (${r.competitorsPer1k.toFixed(1)} per 1,000 addresses)`;
-    const reason = `${fmt(r.reach)} addresses, ${compText}, ${r.anchors} nearby anchor${r.anchors === 1 ? '' : 's'}, ${r.distanceMi.toFixed(1)} mi away`;
+        ? 'no rivals on record'
+        : `${r.competitors} rival${r.competitors === 1 ? '' : 's'} (${r.competitorsPer1k.toFixed(1)} per 1,000 addresses)`;
+    const reason = `${fmt(r.reach)} addresses, ${compText}, ${r.anchors} anchor${r.anchors === 1 ? '' : 's'} nearby, ${r.distanceMi.toFixed(1)} mi away`;
     return { ...r, id: zones[r.zone].id, label: zones[r.zone].label, parts, score, reason };
   });
   results.sort((a, b) => b.score - a.score || b.reach - a.reach);
