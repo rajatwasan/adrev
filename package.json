@@ -1,0 +1,25 @@
+{
+  "name": "adrev",
+  "version": "1.0.0",
+  "description": "Where to aim a local ad budget, built on Overture Maps open data.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "fixture": "node scripts/make_fixture.mjs",
+    "extract": "python scripts/extract.py"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  },
+  "dependencies": {
+    "h3-js": "^4.5.0",
+    "maplibre-gl": "^6.19.0"
+  },
+  "private": true,
+  "type": "module"
+}
