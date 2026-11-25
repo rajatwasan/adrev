@@ -1,0 +1,436 @@
+{
+ "release": "2026-11-18.0",
+ "generated": "2026-11-25",
+ "cities": [
+  {
+   "slug": "san-francisco",
+   "city": "San Francisco",
+   "country": "US",
+   "places": 63828,
+   "reach": 383651,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 35
+  },
+  {
+   "slug": "new-york",
+   "city": "New York",
+   "country": "US",
+   "places": 220434,
+   "reach": 230116,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 80
+  },
+  {
+   "slug": "los-angeles",
+   "city": "Los Angeles",
+   "country": "US",
+   "places": 133533,
+   "reach": 501580,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 84
+  },
+  {
+   "slug": "chicago",
+   "city": "Chicago",
+   "country": "US",
+   "places": 84901,
+   "reach": 205370,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 36
+  },
+  {
+   "slug": "seattle",
+   "city": "Seattle",
+   "country": "US",
+   "places": 42503,
+   "reach": 148223,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 28
+  },
+  {
+   "slug": "austin",
+   "city": "Austin",
+   "country": "US",
+   "places": 39982,
+   "reach": 107144,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 28
+  },
+  {
+   "slug": "miami",
+   "city": "Miami",
+   "country": "US",
+   "places": 64531,
+   "reach": 351238,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 33
+  },
+  {
+   "slug": "boston",
+   "city": "Boston",
+   "country": "US",
+   "places": 44316,
+   "reach": 395868,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 37
+  },
+  {
+   "slug": "washington-dc",
+   "city": "Washington, DC",
+   "country": "US",
+   "places": 47688,
+   "reach": 382442,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 61
+  },
+  {
+   "slug": "denver",
+   "city": "Denver",
+   "country": "US",
+   "places": 41080,
+   "reach": 269219,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 28
+  },
+  {
+   "slug": "toronto",
+   "city": "Toronto",
+   "country": "CA",
+   "places": 42529,
+   "reach": 488672,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 47
+  },
+  {
+   "slug": "vancouver",
+   "city": "Vancouver",
+   "country": "CA",
+   "places": 27800,
+   "reach": 284404,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 28
+  },
+  {
+   "slug": "mexico-city",
+   "city": "Mexico City",
+   "country": "MX",
+   "places": 77577,
+   "reach": 237511,
+   "reachSource": "addresses",
+   "zoneKind": "hex",
+   "zones": 34
+  },
+  {
+   "slug": "sao-paulo",
+   "city": "São Paulo",
+   "country": "BR",
+   "places": 87814,
+   "reach": 185468,
+   "reachSource": "addresses",
+   "zoneKind": "hex",
+   "zones": 27
+  },
+  {
+   "slug": "buenos-aires",
+   "city": "Buenos Aires",
+   "country": "AR",
+   "places": 44541,
+   "reach": 144826,
+   "reachSource": "buildings",
+   "zoneKind": "hex",
+   "zones": 35
+  },
+  {
+   "slug": "bogota",
+   "city": "Bogotá",
+   "country": "CO",
+   "places": 30720,
+   "reach": 131126,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 21
+  },
+  {
+   "slug": "london",
+   "city": "London",
+   "country": "GB",
+   "places": 207712,
+   "reach": 126948,
+   "reachSource": "buildings",
+   "zoneKind": "zip",
+   "zones": 95
+  },
+  {
+   "slug": "paris",
+   "city": "Paris",
+   "country": "FR",
+   "places": 218987,
+   "reach": 164772,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 33
+  },
+  {
+   "slug": "berlin",
+   "city": "Berlin",
+   "country": "DE",
+   "places": 108000,
+   "reach": 55391,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 83
+  },
+  {
+   "slug": "madrid",
+   "city": "Madrid",
+   "country": "ES",
+   "places": 117382,
+   "reach": 111269,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 40
+  },
+  {
+   "slug": "barcelona",
+   "city": "Barcelona",
+   "country": "ES",
+   "places": 104097,
+   "reach": 108760,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 43
+  },
+  {
+   "slug": "amsterdam",
+   "city": "Amsterdam",
+   "country": "NL",
+   "places": 46148,
+   "reach": 309740,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 42
+  },
+  {
+   "slug": "rome",
+   "city": "Rome",
+   "country": "IT",
+   "places": 92338,
+   "reach": 141453,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 39
+  },
+  {
+   "slug": "stockholm",
+   "city": "Stockholm",
+   "country": "SE",
+   "places": 42295,
+   "reach": 16228,
+   "reachSource": "buildings",
+   "zoneKind": "hex",
+   "zones": 26
+  },
+  {
+   "slug": "dublin",
+   "city": "Dublin",
+   "country": "IE",
+   "places": 13507,
+   "reach": 84360,
+   "reachSource": "buildings",
+   "zoneKind": "zip",
+   "zones": 17
+  },
+  {
+   "slug": "lisbon",
+   "city": "Lisbon",
+   "country": "PT",
+   "places": 23981,
+   "reach": 263490,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 26
+  },
+  {
+   "slug": "warsaw",
+   "city": "Warsaw",
+   "country": "PL",
+   "places": 26766,
+   "reach": 28160,
+   "reachSource": "buildings",
+   "zoneKind": "zip",
+   "zones": 28
+  },
+  {
+   "slug": "lagos",
+   "city": "Lagos",
+   "country": "NG",
+   "places": 8316,
+   "reach": 149027,
+   "reachSource": "buildings",
+   "zoneKind": "hex",
+   "zones": 38
+  },
+  {
+   "slug": "nairobi",
+   "city": "Nairobi",
+   "country": "KE",
+   "places": 22355,
+   "reach": 127177,
+   "reachSource": "buildings",
+   "zoneKind": "zip",
+   "zones": 67
+  },
+  {
+   "slug": "cape-town",
+   "city": "Cape Town",
+   "country": "ZA",
+   "places": 10357,
+   "reach": 26235,
+   "reachSource": "buildings",
+   "zoneKind": "zip",
+   "zones": 26
+  },
+  {
+   "slug": "dubai",
+   "city": "Dubai",
+   "country": "AE",
+   "places": 24630,
+   "reach": 39375,
+   "reachSource": "buildings",
+   "zoneKind": "hex",
+   "zones": 35
+  },
+  {
+   "slug": "tel-aviv",
+   "city": "Tel Aviv",
+   "country": "IL",
+   "places": 17283,
+   "reach": 29813,
+   "reachSource": "buildings",
+   "zoneKind": "hex",
+   "zones": 15
+  },
+  {
+   "slug": "mumbai",
+   "city": "Mumbai",
+   "country": "IN",
+   "places": 36490,
+   "reach": 109216,
+   "reachSource": "buildings",
+   "zoneKind": "zip",
+   "zones": 55
+  },
+  {
+   "slug": "bengaluru",
+   "city": "Bengaluru",
+   "country": "IN",
+   "places": 41174,
+   "reach": 223859,
+   "reachSource": "buildings",
+   "zoneKind": "zip",
+   "zones": 64
+  },
+  {
+   "slug": "delhi",
+   "city": "Delhi",
+   "country": "IN",
+   "places": 35581,
+   "reach": 149581,
+   "reachSource": "buildings",
+   "zoneKind": "zip",
+   "zones": 84
+  },
+  {
+   "slug": "singapore",
+   "city": "Singapore",
+   "country": "SG",
+   "places": 43284,
+   "reach": 46306,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 47
+  },
+  {
+   "slug": "tokyo",
+   "city": "Tokyo",
+   "country": "JP",
+   "places": 153381,
+   "reach": 202294,
+   "reachSource": "buildings",
+   "zoneKind": "zip",
+   "zones": 29
+  },
+  {
+   "slug": "seoul",
+   "city": "Seoul",
+   "country": "KR",
+   "places": 44861,
+   "reach": 92276,
+   "reachSource": "buildings",
+   "zoneKind": "zip",
+   "zones": 48
+  },
+  {
+   "slug": "bangkok",
+   "city": "Bangkok",
+   "country": "TH",
+   "places": 78821,
+   "reach": 164160,
+   "reachSource": "buildings",
+   "zoneKind": "zip",
+   "zones": 12
+  },
+  {
+   "slug": "jakarta",
+   "city": "Jakarta",
+   "country": "ID",
+   "places": 43244,
+   "reach": 313390,
+   "reachSource": "buildings",
+   "zoneKind": "zip",
+   "zones": 95
+  },
+  {
+   "slug": "hong-kong",
+   "city": "Hong Kong",
+   "country": "HK",
+   "places": 52950,
+   "reach": 31938,
+   "reachSource": "addresses",
+   "zoneKind": "hex",
+   "zones": 22
+  },
+  {
+   "slug": "sydney",
+   "city": "Sydney",
+   "country": "AU",
+   "places": 44457,
+   "reach": 417640,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 48
+  },
+  {
+   "slug": "melbourne",
+   "city": "Melbourne",
+   "country": "AU",
+   "places": 35391,
+   "reach": 340537,
+   "reachSource": "addresses",
+   "zoneKind": "zip",
+   "zones": 29
+  }
+ ]
+}
